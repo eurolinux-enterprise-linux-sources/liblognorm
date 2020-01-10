@@ -1,6 +1,6 @@
 Name:		liblognorm
 Version:	0.3.7
-Release:	1%{?dist}
+Release:	3%{?dist}
 Summary:	Fast samples-based log normalization library
 
 License:	LGPLv2+
@@ -70,6 +70,12 @@ chrpath -d %{buildroot}/%{_libdir}/liblognorm.so.0.0.0
 
 
 %changelog
+* Fri Jan 24 2014 Daniel Mach <dmach@redhat.com> - 0.3.7-3
+- Mass rebuild 2014-01-24
+
+* Fri Dec 27 2013 Daniel Mach <dmach@redhat.com> - 0.3.7-2
+- Mass rebuild 2013-12-27
+
 * Wed Jul 31 2013 Tomas Heinrich <theinric@redhat.com> - 0.3.7-1
 - rebase to 0.3.7
 
