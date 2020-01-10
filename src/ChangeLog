@@ -1,0 +1,63 @@
+----------------------------------------------------------------------
+Version 0.3.7, 2013-07-17
+- added support to load single samples
+  Thanks to John Hopper for the patch
+----------------------------------------------------------------------
+Version 0.3.6, 2013-03-22
+- bugfix: unitialized variable could lead to rulebase load error
+----------------------------------------------------------------------
+Version 0.3.5 (rgerhards), 2012-09-18
+- renamed "normalizer" tool to "lognormalizer" to solve name clashes
+  Thanks to the Fedora folks for pointing this out.
+----------------------------------------------------------------------
+Version 0.3.4 (rgerhards), 2012-04-16
+- bugfix: normalizer tool had a memory leak
+  Thanks to Brian Know for alerting me and helping to debug
+----------------------------------------------------------------------
+Version 0.3.3 (rgerhards), 2012-02-06
+- required header file was not installed, resulting in compile error
+  closes: http://bugzilla.adiscon.com/show_bug.cgi?id=307
+  Thanks to Andreis Vinogradovs for alerting us on this bug.
+----------------------------------------------------------------------
+Version 0.3.2 (rgerhards), 2011-11-21
+- added rfc5424 parser (requires libee >= 0.3.2)
+- added "-" to serve as name for filler fields. Value is extracted,
+  but no field is written
+- special handling for iptables log via %iptables% parser added 
+  (currently experimental pending practical verification)
+- normalizer tool on its way to a full-blow stand-alone tool
+- support for annotations added, for the time being see
+  http://blog.gerhards.net/2011/11/log-annotation-with-liblognorm.html
+----------------------------------------------------------------------
+Version 0.3.1 (rgerhards), 2011-04-18
+- added -t option to normalizer so that only messages with a 
+  specified tag will be output
+- bugfix: abort if a tag was assigned to a message without any 
+  fields parsed out (uncommon scenario)
+- bugfix: mem leak on parse tree destruct -- associated tags were
+  not deleted
+- bugfix: potential abort in normalizer due to misadressing in debug
+  message generation
+----------------------------------------------------------------------
+Version 0.3.0 (rgerhards), 2011-04-06
+- support for message classification via tags added
+- bugfix: partial messages were invalidly matched
+  closes: http://bugzilla.adiscon.com/show_bug.cgi?id=247
+----------------------------------------------------------------------
+Version 0.2.0 (rgerhards), 2011-04-01
+- added -E option to normalizer tool, permits to specify data for
+  encoders
+- support for new libee parsers:
+  * Time12hr
+  * Time24hr
+  * ISODate
+  * QuotedString
+- support for csv encoding added
+- added -p option to normalizer tool (output only correctly parsed
+  entries)
+- bugfix: segfault if a parse tree prefix had exactly buffer size,
+  in which case it was invalidly assumed that an external buffer had
+  been allocated
+----------------------------------------------------------------------
+Version 0.1.0 (rgerhards), 2010-12-09
+Initial public release.
