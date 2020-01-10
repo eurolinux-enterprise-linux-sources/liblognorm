@@ -1,6 +1,8 @@
+%define htmldir %{_docdir}/liblognorm/html
+
 Name:		liblognorm
-Version:	0.3.7
-Release:	3%{?dist}
+Version:	2.0.2
+Release:	1%{?dist}
 Summary:	Fast samples-based log normalization library
 
 License:	LGPLv2+
@@ -8,7 +10,10 @@ URL:		http://www.liblognorm.com
 Source0:	http://www.liblognorm.com/files/download/%{name}-%{version}.tar.gz
 Patch1:		liblognorm-0.3.4-pc-file.patch
 
-BuildRequires:	libestr-devel, libee-devel, chrpath
+BuildRequires:	chrpath
+BuildRequires:	libfastjson-devel
+BuildRequires:	libestr-devel
+BuildRequires:	pcre-devel
 
 %description
 Briefly described, liblognorm is a tool to normalize log data.
@@ -24,11 +29,20 @@ the logs you want to normalize.
 %package devel
 Summary:	Development tools for programs using liblognorm library
 Requires:	%{name}%{?_isa} = %{version}-%{release}
-Requires:	libee-devel%{?_isa} libestr-devel%{?_isa}
+Requires:	libfastjson-devel%{?_isa}
+Requires:	libestr-devel%{?_isa}
 
 %description devel
 The liblognorm-devel package includes header files, libraries necessary for
 developing programs which use liblognorm library.
+
+%package doc
+Summary: HTML documentation for liblognorm
+Group: Documentation
+BuildRequires: python-sphinx
+
+%description doc
+This sub-package contains documentation for liblognorm in a HTML form.
 
 %package utils
 Summary:	Lognormalizer utility for normalizing log files
@@ -40,24 +54,28 @@ log files.
 
 %prep
 %setup -q
-%patch1 -p1 -b .pc-file.patch
 
 %build
-%configure
-V=1 make
+%configure --enable-regexp --enable-docs --docdir=%{htmldir}
+
 
 %install
-make install INSTALL="install -p" DESTDIR=%{buildroot}
+make V=1 install INSTALL="install -p" DESTDIR=%{buildroot}
 rm -f %{buildroot}/%{_libdir}/*.{a,la}
-chrpath -d %{buildroot}/%{_bindir}/lognormalizer
-chrpath -d %{buildroot}/%{_libdir}/liblognorm.so.0.0.0
+chrpath -d %{buildroot}%{_bindir}/lognormalizer
+chrpath -d %{buildroot}%{_libdir}/liblognorm.so
+rm %{buildroot}%{htmldir}/{objects.inv,.buildinfo}
 
 %post -p /sbin/ldconfig
 
 %postun -p /sbin/ldconfig
 
 %files
-%doc AUTHORS ChangeLog COPYING NEWS README
+%{!?_licensedir:%global license %%doc}
+%license COPYING
+%doc AUTHORS ChangeLog README
+%exclude %{htmldir}
+
 %{_libdir}/lib*.so.*
 
 %files devel
@@ -65,11 +83,19 @@ chrpath -d %{buildroot}/%{_libdir}/liblognorm.so.0.0.0
 %{_includedir}/*.h
 %{_libdir}/pkgconfig/*.pc
 
+%files doc
+%doc %{htmldir}
+
 %files utils
 %{_bindir}/lognormalizer
 
 
+
 %changelog
+* Wed Mar 1 2017 Radovan Sroka <rsroka@redhat.com> 2.0.2-1
+- rebase to 2.0.2
+- resolves: rhbz#1420719
+
 * Fri Jan 24 2014 Daniel Mach <dmach@redhat.com> - 0.3.7-3
 - Mass rebuild 2014-01-24
 

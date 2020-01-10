@@ -36,7 +36,9 @@
  *//*
  *
  * liblognorm - a fast samples-based log normalization library
- * Copyright 2010 by Rainer Gerhards and Adiscon GmbH.
+ * Copyright 2010-2013 by Rainer Gerhards and Adiscon GmbH.
+ *
+ * Modified by Pavel Levshin (pavel@levshin.spb.ru) in 2013
  *
  * This file is part of liblognorm.
  *
@@ -57,22 +59,23 @@
  * A copy of the LGPL v2.1 can be found in the file "COPYING" in this distribution.
  */
 #ifndef LIBLOGNORM_H_INCLUDED
-#define	LIBLOGNORM_H_INCLUDED
+#define LIBLOGNORM_H_INCLUDED
 #include <stdlib.h>	/* we need size_t */
-#include <libee/libee.h>
+#include <json.h>
 
 /* error codes */
 #define LN_NOMEM -1
 #define LN_INVLDFDESCR -1
+#define LN_BADCONFIG -250
+#define LN_BADPARSERSTATE -500
+#define LN_WRONGPARSER -1000
 
-/* event_t needs to come from libcee, or whatever it will be called. We
- * provide a dummy to be able to compile the initial skeletons.
- */
-typedef void * event_t;
+#define LN_RB_LINE_TOO_LONG -1001
+#define LN_OVER_SIZE_LIMIT -1002
 
 /**
  * The library context descriptor.
- * This is used to permit multiple independednt instances of the
+ * This is used to permit multiple independent instances of the
  * library to be called within a single program. This is most
  * useful for plugin-based architectures.
  */
@@ -89,7 +92,15 @@ typedef struct ln_ctx_s* ln_ctx;
 /* Note: this MUST NOT be inline to make sure the actual library
  * has the right version, not just what was used to compile!
  */
-char *ln_version(void);
+const char *ln_version(void);
+
+/**
+ * Return if library is build with advanced statistics
+ * activated.
+ *
+ * @return 1 if advanced stats are active, 0 if not
+ */
+int ln_hasAdvancedStats(void);
 
 /**
  * Initialize a library context.
@@ -100,6 +111,19 @@ char *ln_version(void);
  * @return new library context or NULL if an error occured
  */
 ln_ctx ln_initCtx(void);
+
+/**
+ * Inherit control attributes from a library context.
+ *
+ * This does not copy the parse-tree, but does copy
+ * behaviour-controling attributes such as enableRegex.
+ *
+ * Just as with ln_initCtx, ln_exitCtx() must be called on a library
+ * context that is no longer needed.
+ *
+ * @return new library context or NULL if an error occured
+ */
+ln_ctx ln_inherittedCtx(ln_ctx parent);
 
 /**
  * Discard a library context.
@@ -114,13 +138,21 @@ ln_ctx ln_initCtx(void);
 int ln_exitCtx(ln_ctx ctx);
 
 
+/* binary values, so that we can "or" them together */
+#define LN_CTXOPT_ALLOW_REGEX		0x01 /**< permit regex matching */
+#define LN_CTXOPT_ADD_EXEC_PATH		0x02 /**< add exec_path attribute (time-consuming!) */
+#define LN_CTXOPT_ADD_ORIGINALMSG	0x04 /**< always add original message to output
+					          (not just in error case) */
+#define LN_CTXOPT_ADD_RULE		0x08 /**< add mockup rule */
+#define LN_CTXOPT_ADD_RULE_LOCATION	0x10 /**< add rule location (file, lineno) to metadata */
 /**
- * Set the libee context to be used by this liblognorm context.
+ * Set options on ctx.
  *
- * @param ctx context to be modified
- * @param eectx	libee context
+ * @param ctx The context to be modified.
+ * @param opts a potentially or-ed list of options, see LN_CTXOPT_*
  */
-void ln_setEECtx(ln_ctx ctx, ee_ctx eectx);
+void
+ln_setCtxOpts(ln_ctx ctx, unsigned opts);
 
 
 /**
@@ -155,7 +187,17 @@ void ln_setEECtx(ln_ctx ctx, ee_ctx eectx);
  *
  * @return Returns zero on success, something else otherwise.
  */
-int ln_setDebugCB(ln_ctx ctx, void (*cb)(void*, char*, size_t), void *cookie);
+int ln_setDebugCB(ln_ctx ctx, void (*cb)(void*, const char*, size_t), void *cookie);
+
+/**
+ * Set a error message handler (callback).
+ *
+ * If set, this is used to emit error messages of interest to the user, e.g.
+ * on failures during rulebase load. It is suggested that a caller uses this
+ * feedback to aid its users in resolving issues.
+ * Its semantics are otherwise exactly the same like ln_setDebugCB().
+ */
+int ln_setErrMsgCB(ln_ctx ctx, void (*cb)(void*, const char*, size_t), void *cookie);
 
 
 /**
@@ -166,20 +208,6 @@ int ln_setDebugCB(ln_ctx ctx, void (*cb)(void*, char*, size_t), void *cookie);
  */
 void ln_enableDebug(ln_ctx ctx, int i);
 
-/**
- * Reads a sample stored in buffer buf and creates a new ln_samp object
- * out of it.
- *
- * @note
- * It is the caller's responsibility to delete the newly
- * created ln_samp object if it is no longer needed.
- *
- * @param[ctx] ctx current library context
- * @param[buf] NULL terminated cstr containing the contents of the sample
- * @return Returns zero on success, something else otherwise.
- */
-int
-ln_loadSample(ln_ctx ctx, char *buf);
 
 /**
  * Load a (log) sample file.
@@ -194,7 +222,7 @@ ln_loadSample(ln_ctx ctx, char *buf);
  *
  * @return Returns zero on success, something else otherwise.
  */
-int ln_loadSamples(ln_ctx ctx, char *file);
+int ln_loadSamples(ln_ctx ctx, const char *file);
 
 /**
  * Normalize a message.
@@ -215,14 +243,13 @@ int ln_loadSamples(ln_ctx ctx, char *file);
  * must be provided.
  *
  * @param[in] ctx The library context to use.
- * @param[in] msg The message string (see note above).
- * @param[in] lenmsg The length of the message in bytes.
- * @param[out] event A new event record or NULL if an error occured. <b>Must be
+ * @param[in] str The message string (see note above).
+ * @param[in] strLen The length of the message in bytes.
+ * @param[out] json_p A new event record or NULL if an error occured. <b>Must be
  *                   destructed if no longer needed.</b>
  *
  * @return Returns zero on success, something else otherwise.
  */
-int ln_normalizeMsg(ln_ctx ctx, char *msg, size_t lenmsg, event_t *event);
-int ln_normalize(ln_ctx ctx, es_str_t *str, struct ee_event **event);
+int ln_normalize(ln_ctx ctx, const char *str, const size_t strLen, struct json_object **json_p);
 
 #endif /* #ifndef LOGNORM_H_INCLUDED */

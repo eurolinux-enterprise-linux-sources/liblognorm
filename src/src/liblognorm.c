@@ -2,7 +2,9 @@
  * See header file for descriptions.
  *
  * liblognorm - a fast samples-based log normalization library
- * Copyright 2010 by Rainer Gerhards and Adiscon GmbH.
+ * Copyright 2013 by Rainer Gerhards and Adiscon GmbH.
+ *
+ * Modified by Pavel Levshin (pavel@levshin.spb.ru) in 2013
  *
  * This file is part of liblognorm.
  *
@@ -23,13 +25,15 @@
  * A copy of the LGPL v2.1 can be found in the file "COPYING" in this distribution.
  */
 #include "config.h"
+#include <string.h>
+#include <errno.h>
 
 #include "liblognorm.h"
 #include "lognorm.h"
 #include "annot.h"
 #include "samp.h"
-
-#define ERR_ABORT {r = 1; goto done; }
+#include "v1_liblognorm.h"
+#include "v1_ptree.h"
 
 #define CHECK_CTX \
 	if(ctx->objID != LN_ObjID_CTX) { \
@@ -37,12 +41,21 @@
 		goto done; \
 	}
 
-char *
+const char *
 ln_version(void)
 {
 	return VERSION;
 }
 
+int
+ln_hasAdvancedStats(void)
+{
+#ifdef	ADVANCED_STATS
+	return 1;
+#else
+	return 0;
+#endif
+}
 
 ln_ctx
 ln_initCtx(void)
@@ -51,20 +64,27 @@ ln_initCtx(void)
 	if((ctx = calloc(1, sizeof(struct ln_ctx_s))) == NULL)
 		goto done;
 
+#ifdef HAVE_JSON_GLOBAL_SET_STRING_HASH
+	json_global_set_string_hash(JSON_C_STR_HASH_PERLLIKE);
+#endif
+#ifdef HAVE_JSON_GLOBAL_SET_PRINTBUF_INITIAL_SIZE
+	json_global_set_printbuf_initial_size(2048);
+#endif
 	ctx->objID = LN_ObjID_CTX;
 	ctx->dbgCB = NULL;
+	ctx->opts = 0;
 
 	/* we add an root for the empty word, this simplifies parse
-	 * tree handling.
+	 * dag handling.
 	 */
-	if((ctx->ptree = ln_newPTree(ctx, NULL)) == NULL) {
+	if((ctx->pdag = ln_newPDAG(ctx)) == NULL) {
 		free(ctx);
 		ctx = NULL;
 		goto done;
 	}
 	/* same for annotation set */
 	if((ctx->pas = ln_newAnnotSet(ctx)) == NULL) {
-		ln_deletePTree(ctx->ptree);
+		ln_pdagDelete(ctx->pdag);
 		free(ctx);
 		ctx = NULL;
 		goto done;
@@ -72,6 +92,11 @@ ln_initCtx(void)
 
 done:
 	return ctx;
+}
+
+void
+ln_setCtxOpts(ln_ctx ctx, const unsigned opts) {
+	ctx->opts |= opts;
 }
 
 
@@ -82,11 +107,23 @@ ln_exitCtx(ln_ctx ctx)
 
 	CHECK_CTX;
 
+	ln_dbgprintf(ctx, "exitCtx %p", ctx);
 	ctx->objID = LN_ObjID_None; /* prevent double free */
+	/* support for old cruft */
 	if(ctx->ptree != NULL)
 		ln_deletePTree(ctx->ptree);
+	/* end support for old cruft */
+	if(ctx->pdag != NULL)
+		ln_pdagDelete(ctx->pdag);
+	for(int i = 0 ; i < ctx->nTypes ; ++i) {
+		free((void*)ctx->type_pdags[i].name);
+		ln_pdagDelete(ctx->type_pdags[i].pdag);
+	}
+	free(ctx->type_pdags);
 	if(ctx->rulePrefix != NULL)
 		es_deleteStr(ctx->rulePrefix);
+	if(ctx->pas != NULL)
+		ln_deleteAnnotSet(ctx->pas);
 	free(ctx);
 done:
 	return r;
@@ -94,7 +131,7 @@ done:
 
 
 int
-ln_setDebugCB(ln_ctx ctx, void (*cb)(void*, char*, size_t), void *cookie)
+ln_setDebugCB(ln_ctx ctx, void (*cb)(void*, const char*, size_t), void *cookie)
 {
 	int r = 0;
 
@@ -107,41 +144,30 @@ done:
 
 
 int
-ln_loadSample(ln_ctx ctx, char *buf)
-{
-    // Something bad happened - no new sample
-    if (ln_processSamp(ctx, buf, strlen(buf)) == NULL) {
-        return 1;
-    }
-    return 0;
-}
-
-
-int
-ln_loadSamples(ln_ctx ctx, char *file)
+ln_setErrMsgCB(ln_ctx ctx, void (*cb)(void*, const char*, size_t), void *cookie)
 {
 	int r = 0;
-	struct ln_sampRepos *repo;
-	struct ln_samp *samp;
-	int isEof = 0;
 
 	CHECK_CTX;
-	if(file == NULL) ERR_ABORT;
-	if((repo = ln_sampOpen(ctx, file)) == NULL) ERR_ABORT;
-	while(!isEof) {
-		if((samp = ln_sampRead(ctx, repo, &isEof)) == NULL) {
-			/* TODO: what exactly to do? */
-		}
-	}
-	ln_sampClose(ctx, repo);
-
+	ctx->errmsgCB = cb;
+	ctx->errmsgCookie = cookie;
 done:
 	return r;
 }
 
-
-void
-ln_setEECtx(ln_ctx ctx, ee_ctx eectx)
+int
+ln_loadSamples(ln_ctx ctx, const char *file)
 {
-	ctx->eectx = eectx;
+	int r = 0;
+	const char *tofree;
+	CHECK_CTX;
+	ctx->conf_file = tofree = strdup(file);
+	ctx->conf_ln_nbr = 0;
+	++ctx->include_level;
+	r = ln_sampLoad(ctx, file);
+	--ctx->include_level;
+	free((void*)tofree);
+	ctx->conf_file = NULL;
+done:
+	return r;
 }

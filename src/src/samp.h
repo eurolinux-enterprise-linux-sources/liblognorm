@@ -8,7 +8,7 @@
  *//*
  *
  * liblognorm - a fast samples-based log normalization library
- * Copyright 2010 by Rainer Gerhards and Adiscon GmbH.
+ * Copyright 2010-2015 by Rainer Gerhards and Adiscon GmbH.
  *
  * This file is part of liblognorm.
  *
@@ -20,7 +20,7 @@
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
+ * Lesser General PublicCH License for more details.
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free Software
@@ -35,83 +35,17 @@
 
 
 /**
- * Object that represents a sample repository (file).
- *
- * Doing this via an objects helps with abstraction and future
- * changes inside the module (which are anticipated).
- */
-struct ln_sampRepos {
-	FILE *fp;
-};
-
-/**
  * A single log sample.
  */
 struct ln_samp {
 	es_str_t *msg;
 };
 
-/**
- * Open a Sample Repository.
- *
- * @param[in] ctx current library context
- * @param[in] name file name
- * @return repository object or NULL if failure
- */
-struct ln_sampRepos *
-ln_sampOpen(ln_ctx ctx, char *name);
+void ln_sampFree(ln_ctx ctx, struct ln_samp *samp);
+int ln_sampLoad(ln_ctx ctx, const char *file);
 
-
-/**
- * Close sample file.
- *
- * @param[in] ctx current library context
- * @param[in] fd file descriptor of open sample file
- */
-void
-ln_sampClose(ln_ctx ctx, struct ln_sampRepos *repo);
-
-
-/**
- * Reads a sample stored in buffer buf and creates a new ln_samp object
- * out of it.
- *
- * @note
- * It is the caller's responsibility to delete the newly
- * created ln_samp object if it is no longer needed.
- *
- * @param[ctx] ctx current library context
- * @param[buf] cstr buffer containing the string contents of the sample
- * @param[lenBuf] length of the sample contained within buf
- * @return Newly create object or NULL if an error occured.
- */
-struct ln_samp *
-ln_processSamp(ln_ctx ctx, char *buf, es_size_t lenBuf);
-
-
-/**
- * Read a sample from repository (sequentially).
- *
- * Reads a sample starting with the current file position and
- * creates a new ln_samp object out of it.
- *
- * @note
- * It is the caller's responsibility to delete the newly
- * created ln_samp object if it is no longer needed.
- *
- * @param[in] ctx current library context
- * @param[in] repo repository descriptor
- * @param[out] isEof must be set to 0 on entry and is switched to 1 if EOF occured.
- * @return Newly create object or NULL if an error or EOF occured.
- */
-struct ln_samp *
-ln_sampRead(ln_ctx ctx, struct ln_sampRepos *repo, int *isEof);
-
-
-/**
- * Free ln_samp object.
- */
-void
-ln_sampFree(ln_ctx ctx, struct ln_samp *samp);
+/* dual-use funtions for v1 engine */
+void ln_sampSkipCommentLine(ln_ctx ctx, FILE * const __restrict__ repo);
+int ln_sampChkRunawayRule(ln_ctx ctx, FILE *const __restrict__ repo);
 
 #endif /* #ifndef LIBLOGNORM_SAMPLES_H_INCLUDED */

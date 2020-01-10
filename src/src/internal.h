@@ -31,7 +31,9 @@
  *//*
  *
  * liblognorm - a fast samples-based log normalization library
- * Copyright 2010 by Rainer Gerhards and Adiscon GmbH.
+ * Copyright 2010-2016 by Rainer Gerhards and Adiscon GmbH.
+ *
+ * Modified by Pavel Levshin (pavel@levshin.spb.ru) in 2013
  *
  * This file is part of liblognorm.
  *
@@ -54,6 +56,15 @@
 #ifndef INTERNAL_H_INCLUDED
 #define	INTERNAL_H_INCLUDED
 
+#include "liblognorm.h"
+
+#include <libestr.h>
+
+/* we need to turn off this warning, as it also comes up in C99 mode, which
+ * we use.
+ */
+#pragma GCC diagnostic ignored "-Wdeclaration-after-statement"
+
 /* support for simple error checking */
 
 #define CHKR(x) \
@@ -67,4 +78,28 @@
 
 #define FAIL(e) {r = (e); goto done;}
 
-#endif /* #ifndef LOGNORM_H_INCLUDED */
+static inline char* ln_es_str2cstr(es_str_t **str)
+{
+	int r = -1;
+	char *buf;
+
+	if (es_strlen(*str) == (*str)->lenBuf) {
+		CHKR(es_extendBuf(str, 1));
+	}
+	CHKN(buf = (char*)es_getBufAddr(*str));
+	buf[es_strlen(*str)] = '\0';
+	return buf;
+done:
+	return NULL;
+}
+
+const char * ln_DataForDisplayCharTo(__attribute__((unused)) ln_ctx ctx, void *const pdata);
+const char * ln_DataForDisplayLiteral(__attribute__((unused)) ln_ctx ctx, void *const pdata);
+const char * ln_JsonConfLiteral(__attribute__((unused)) ln_ctx ctx, void *const pdata);
+
+/* here we add some stuff from the compatibility layer */
+#ifndef HAVE_STRNDUP
+char * strndup(const char *s, size_t n);
+#endif
+
+#endif /* #ifndef INTERNAL_H_INCLUDED */
