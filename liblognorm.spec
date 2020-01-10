@@ -2,16 +2,17 @@
 
 Name:		liblognorm
 Version:	2.0.2
-Release:	1%{?dist}
+Release:	3%{?dist}
 Summary:	Fast samples-based log normalization library
 
 License:	LGPLv2+
 URL:		http://www.liblognorm.com
 Source0:	http://www.liblognorm.com/files/download/%{name}-%{version}.tar.gz
-Patch1:		liblognorm-0.3.4-pc-file.patch
+Patch0:		liblognorm-2.0.0-rhbz1565219-add-skipempty.patch
 
 BuildRequires:	chrpath
-BuildRequires:	libfastjson-devel
+#this release contains ABI change used by bz1565219 fix
+BuildRequires:	libfastjson-devel >= 0.99.4-3
 BuildRequires:	libestr-devel
 BuildRequires:	pcre-devel
 
@@ -54,6 +55,7 @@ log files.
 
 %prep
 %setup -q
+%patch0 -p1 -b .skipempty
 
 %build
 %configure --enable-regexp --enable-docs --docdir=%{htmldir}
@@ -92,6 +94,17 @@ rm %{buildroot}%{htmldir}/{objects.inv,.buildinfo}
 
 
 %changelog
+* Fri Aug 03 2018 Jiri Vymazal <jvymazal@redhat.com> 2.0.2-3
+RHEL 7.6 erratum
+- corrected version for libfastjson build dep
+  resolves: rhbz#1565219
+
+* Mon Jul 30 2018 Jiri Vymazal <jvymazal@redhat.com> 2.0.2-2
+RHEL 7.6 erratum
+- added patch with skipempty support
+  resolves: rhbz#1565219
+- removed no longer used patch file
+
 * Wed Mar 1 2017 Radovan Sroka <rsroka@redhat.com> 2.0.2-1
 - rebase to 2.0.2
 - resolves: rhbz#1420719
